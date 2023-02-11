@@ -124,7 +124,11 @@ func (z *Zabbix) GetHosts() (ZabbixResult, error) {
 		"params": {
 			"output": ["host","name","available","status"],
 			"selectInterfaces":["ip"],
-			"selectGroups": ["name"]
+			"selectGroups": ["name"],
+			"filter": {
+				"host": ["v220210856809159963", "v220200756809124041", "v2202301180000214316"]
+			}
+			
 		},		
 		"id": 1,
 		"auth": "%s" 

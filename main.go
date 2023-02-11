@@ -15,17 +15,18 @@ func init() {
 }
 
 func main() {
+	hosts := inventory.ListHosts{}
 
-	ansibleInventory := inventory.Inventory{}
+	// ansibleInventory := inventory.Inventory{}
 
-	ansibleInventory.NewInventory()
+	// ansibleInventory.NewInventory()
 
 	ansibleEnv, _ := os.LookupEnv("ENV")
 
 	if ansibleEnv != "" {
 		envHosts := os.Getenv(ansibleEnv)
 
-		ansibleInventory.EnvInv(envHosts)
+		hosts.AddFromEnv(envHosts)
 
 	}
 
@@ -39,16 +40,16 @@ func main() {
 			User:     zbx_user,
 			Password: zbx_password}
 
-		err := ansibleInventory.ZabbixInventory(zbx)
+		err := hosts.AddFromZabbix(zbx)
 		if err != nil {
 			log.Fatal(err)
 		}
-		js, err := json.MarshalIndent(ansibleInventory, "", "  ")
-
-		if err != nil {
-			log.Fatal(err)
-		}
-		os.Stdout.Write(js)
 	}
+	ansibleInventory := hosts.CreateInventory()
+	js, err := json.MarshalIndent(ansibleInventory, "", "  ")
 
+	if err != nil {
+		log.Fatal(err)
+	}
+	os.Stdout.Write(js)
 }

@@ -12,28 +12,62 @@ func (inv *Inventory) NewInventory() Inventory {
 	return make(Inventory)
 }
 
-func (inv Inventory) EnvInv(s string) error {
-	var listServerName []string
-	all := make(map[string]interface{})
-	hostVars := make(map[string]interface{})
+type ListHosts struct {
+	Hosts []Host
+}
+
+type Host struct {
+	Name   string
+	Groups []string
+	IP     string
+}
+
+func (lh *ListHosts) AddFromEnv(s string) error {
+	host := Host{}
 
 	ips := strings.Split(s, ",")
 	for i, ip := range ips {
+		host.Groups = nil
 		if ip != "" {
-			serverName := fmt.Sprintf("envHost%d", i)
-			listServerName = append(listServerName, serverName)
-			all["EnvServers"] = listServerName
-			hostVars[serverName] = map[string]string{"ansible_host": strings.TrimSpace(ip)}
+			host.Name = fmt.Sprintf("envHost%d", i)
+			host.Groups = append(host.Groups, "EnvServers")
+			host.IP = strings.TrimSpace(ip)
 		}
+		lh.Hosts = append(lh.Hosts, host)
 	}
-
-	inv["_meta"] = hostVars
-	inv["all"] = all
 
 	return nil
 }
 
-func (inv Inventory) ZabbixInventory(zbx zabbix.Zabbix) error {
+func (lh *ListHosts) AddFromZabbix(zbx zabbix.Zabbix) error {
+	host := Host{}
+
+	zbx.NewSession()
+	defer zbx.Logout()
+	hosts, err := zbx.GetHosts()
+
+	if err != nil {
+		return err
+	}
+
+	for _, zbxHost := range hosts.Result {
+		host.Groups = nil
+		host.Name = strings.ReplaceAll(zbxHost.Name, " ", "")
+		host.IP = zbxHost.Interfaces[0].IP
+
+		for _, zbxGroup := range zbxHost.Groups {
+			groupName := strings.ReplaceAll(zbxGroup.Name, " ", "")
+			host.Groups = append(host.Groups, groupName)
+		}
+		lh.Hosts = append(lh.Hosts, host)
+	}
+
+	return nil
+}
+
+func (lh *ListHosts) CreateInventory() map[string]interface{} {
+	inventory := make(map[string]interface{})
+
 	hostVars := make(map[string]interface{}, 0)
 	all := make(map[string]interface{}, 0)
 	ungrouped := make(map[string]interface{}, 0)
@@ -41,40 +75,26 @@ func (inv Inventory) ZabbixInventory(zbx zabbix.Zabbix) error {
 	allHosts := make([]string, 0)
 	groups := make(map[string][]interface{}, 0)
 
-	defer zbx.Logout()
-
-	zbx.NewSession()
-	hosts, err := zbx.GetHosts()
-
-	if err != nil {
-		return err
-	}
-
-	for _, host := range hosts.Result {
-
-		hostVars[host.Name] = map[string]string{"ansible_host": host.Interfaces[0].IP}
-
-		allHosts = append(allHosts, strings.ReplaceAll(host.Name, " ", ""))
+	for _, host := range lh.Hosts {
+		hostVars[host.Name] = map[string]string{"ansible_host": host.IP}
+		allHosts = append(allHosts, host.Name)
 
 		for _, group := range host.Groups {
-			groupName := strings.ReplaceAll(group.Name, " ", "")
-			groups[groupName] = append(groups[groupName], host.Name)
-		}
+			groups[group] = append(groups[group], host.Name)
 
+		}
 	}
+
+	inventory["_meta"] = map[string]interface{}{"hostvars": hostVars}
+	all["hosts"] = allHosts
+	all["ungrouped"] = ungrouped
+	inventory["all"] = all
 
 	for groupName, hostName := range groups {
-		inv[groupName] = hostName
+		inventory[groupName] = hostName
 		children = append(children, groupName)
 	}
-
-	all["hosts"] = allHosts
 	all["children"] = children
-	all["ungrouped"] = ungrouped
 
-	inv["_meta"] = map[string]interface{}{"hostvars": hostVars}
-	inv["all"] = all
-
-	return nil
-
+	return inventory
 }
