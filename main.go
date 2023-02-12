@@ -17,10 +17,6 @@ func init() {
 func main() {
 	hosts := inventory.ListHosts{}
 
-	// ansibleInventory := inventory.Inventory{}
-
-	// ansibleInventory.NewInventory()
-
 	ansibleEnv, _ := os.LookupEnv("ENV")
 
 	if ansibleEnv != "" {

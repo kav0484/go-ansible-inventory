@@ -6,12 +6,6 @@ import (
 	"strings"
 )
 
-type Inventory map[string]interface{}
-
-func (inv *Inventory) NewInventory() Inventory {
-	return make(Inventory)
-}
-
 type ListHosts struct {
 	Hosts []Host
 }
@@ -73,7 +67,7 @@ func (lh *ListHosts) CreateInventory() map[string]interface{} {
 	ungrouped := make(map[string]interface{}, 0)
 	children := make([]string, 0)
 	allHosts := make([]string, 0)
-	groups := make(map[string][]interface{}, 0)
+	groups := make(map[string][]string, 0)
 
 	for _, host := range lh.Hosts {
 		hostVars[host.Name] = map[string]string{"ansible_host": host.IP}
@@ -81,20 +75,22 @@ func (lh *ListHosts) CreateInventory() map[string]interface{} {
 
 		for _, group := range host.Groups {
 			groups[group] = append(groups[group], host.Name)
-
 		}
+
 	}
 
 	inventory["_meta"] = map[string]interface{}{"hostvars": hostVars}
-	all["hosts"] = allHosts
-	all["ungrouped"] = ungrouped
-	inventory["all"] = all
 
-	for groupName, hostName := range groups {
-		inventory[groupName] = hostName
+	for groupName, hosts := range groups {
+		inventory[groupName] = map[string][]string{"hosts": hosts}
 		children = append(children, groupName)
 	}
+
+	all["hosts"] = allHosts
 	all["children"] = children
+	inventory["all"] = all
+
+	inventory["ungrouped"] = ungrouped
 
 	return inventory
 }
